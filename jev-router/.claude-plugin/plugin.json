@@ -1,0 +1,29 @@
+{
+  "name": "jev-router",
+  "version": "0.1.0",
+  "description": "Per-turn model routing: TypeSafe Jev picks Haiku, Sonnet or Opus for each prompt (port of gargpratyush/jev-router).",
+  "userConfig": {
+    "apiKey": {
+      "type": "string",
+      "title": "TypeSafe API key",
+      "description": "Jev API key. Falls back to JEV_API_KEY, TYPESAFE_API_KEY or TYPESAVEAI_KEY in the environment, then ~/.jev-router.env.",
+      "sensitive": true,
+      "required": false
+    },
+    "allowFable": {
+      "type": "boolean",
+      "title": "Allow Fable",
+      "description": "Let Jev route to the long tier (Fable bills extra usage credits).",
+      "default": false
+    },
+    "routeOnStart": {
+      "type": "boolean",
+      "title": "Route from session start",
+      "description": "Start each session with routing on. Off: run /jev on to start.",
+      "default": true
+    }
+  },
+  "author": {
+    "name": "jelcke"
+  }
+}

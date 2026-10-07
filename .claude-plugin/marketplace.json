@@ -1,0 +1,14 @@
+{
+  "name": "jelcke-mods",
+  "owner": {
+    "name": "jelcke"
+  },
+  "description": "Claude Code mods by jelcke.",
+  "plugins": [
+    {
+      "name": "jev-router",
+      "source": "./jev-router",
+      "description": "Per-prompt model routing: TypeSafe Jev picks Haiku, Sonnet or Opus for each prompt."
+    }
+  ]
+}
