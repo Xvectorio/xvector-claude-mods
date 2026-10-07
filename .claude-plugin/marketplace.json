@@ -9,6 +9,16 @@
       "name": "jev-router",
       "source": "./jev-router",
       "description": "Per-prompt model routing: TypeSafe Jev picks Haiku, Sonnet or Opus for each prompt."
+    },
+    {
+      "name": "context-bar",
+      "source": "./context-bar",
+      "description": "Context window bar above the prompt, split like /context; toggle with /context-bar"
+    },
+    {
+      "name": "sources",
+      "source": "./sources",
+      "description": "/sources pane: instruction files, files read and instruction contradictions behind each answer"
     }
   ]
 }

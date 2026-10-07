@@ -1,1 +1,9 @@
-{ "name": "context-bar", "version": "0.1.0", "description": "Context window bar above the prompt, split like /context; toggle with /context-bar", "types": "./types/index.d.ts" }
+{
+  "name": "context-bar",
+  "version": "0.1.0",
+  "description": "Context window bar above the prompt, split like /context; toggle with /context-bar",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "jelcke"
+  }
+}

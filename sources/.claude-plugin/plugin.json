@@ -1,1 +1,9 @@
-{ "name": "sources", "version": "0.1.0", "description": "/sources pane: instruction files, files read and instruction contradictions behind each answer", "types": "./types/index.d.ts" }
+{
+  "name": "sources",
+  "version": "0.1.0",
+  "description": "/sources pane: instruction files, files read and instruction contradictions behind each answer",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "jelcke"
+  }
+}
