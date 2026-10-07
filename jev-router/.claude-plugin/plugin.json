@@ -1,6 +1,6 @@
 {
   "name": "jev-router",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Per-turn model routing: TypeSafe Jev picks Haiku, Sonnet or Opus for each prompt (port of gargpratyush/jev-router).",
   "userConfig": {
     "apiKey": {
