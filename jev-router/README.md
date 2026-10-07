@@ -8,14 +8,12 @@ proxy, no wrapper command, the model is swapped inside the session.
 
 ## Install and load
 
-Try it for one session:
-
-```bash
-claude --plugin-dir ~/mods/jev-router
+```
+/plugin marketplace add Xvectorio/xvector-claude-mods
+/plugin install jev-router@jelcke-mods
 ```
 
-To have it in every session, add a `.claude-plugin/marketplace.json` listing the mod, then
-`/plugin install jev-router --marketplace <folder or owner/repo>`.
+Or try a checkout for one session: `claude --plugin-dir ./jev-router`.
 
 ## API key
 
@@ -28,7 +26,14 @@ The first of these that is set wins:
 
 Without a key nothing breaks: every turn stays on the session's model and `/jev` shows why.
 
-> **Privacy:** each prompt you type is sent to TypeSafe so Jev can score it. Nothing else is.
+### Local, no key: clev
+
+clev runs Cloudflare's [clef-flash](https://huggingface.co/Cloudflare/clef-flash), a
+SystemOne-compatible model, on your own GPU (about 20 GB VRAM). Start it with `uv run server.py`
+and set the **Endpoint** option to `http://127.0.0.1:8787/v1/systemone`: no API key is needed,
+and prompts stay on your machine.
+
+> **Privacy:** each prompt you type is sent to the endpoint (TypeSafe by default) so Jev can score it. Nothing else is.
 
 ## Using it
 
@@ -81,6 +86,7 @@ Name a tier yourself and Jev is skipped: `use haiku ...`, `switch to opus ...`, 
 | Option | Default | |
 | --- | --- | --- |
 | API key | none | See *API key* |
+| Endpoint | TypeSafe | SystemOne URL, e.g. a local clev server |
 | Allow Fable | off | Let Jev route to Fable |
 | Route from session start | on | Off: start paused and use `/jev on` |
 
@@ -106,7 +112,7 @@ tests/router.test.ts         claude plugin test .
 
 ## Troubleshooting
 
-Run `claude --debug --plugin-dir ~/mods/jev-router`, or add `--debug-file <path>`. Without
+Run `claude --debug --plugin-dir ./jev-router`, or add `--debug-file <path>`. Without
 `--debug-file`, the log is `~/.claude/debug/<session>.txt` (the newest file; `latest` points at
 it), not stderr. Search it for `jev-router`:
 
@@ -120,6 +126,6 @@ it), not stderr. Search it for `jev-router`:
 ## Tests
 
 ```bash
-claude plugin test ~/mods/jev-router
-claude plugin validate ~/mods/jev-router
+claude plugin test ./jev-router
+claude plugin validate ./jev-router
 ```

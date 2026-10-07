@@ -13,15 +13,17 @@ const jevSays = (choice: string, confidence: number) =>
   })
 
 /** The engine beneath the plugin: a session on Opus, Jev answering `reply`, every step recorded. */
-function world(on: On, reply: () => { status: number; text: string }) {
+function world(on: On, reply: () => { status: number; text: string }, env: Record<string, string> = { JEV_API_KEY: 'test-key' }) {
   const steps: { index: number; model: string; effort?: unknown }[] = []
   const jevBodies: string[] = []
+  const jevCalls: { url: string; auth: string | undefined }[] = []
   mock.clock(on)
-  mock.env(on, { JEV_API_KEY: 'test-key' })
+  mock.env(on, env)
   on('session.root', () => ({ value: '/repo' }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('http.fetch', (_$, e) => {
     jevBodies.push(e.init?.body ?? '')
+    jevCalls.push({ url: e.url, auth: (e.init?.headers as Record<string, string> | undefined)?.Authorization })
     const r = reply()
     return { value: { status: r.status, ok: r.status < 300, headers: {}, text: r.text } }
   })
@@ -33,7 +35,7 @@ function world(on: On, reply: () => { status: number; text: string }) {
       usage: { model: e.model, input_tokens: 500, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
     }
   })
-  return { steps, jevBodies }
+  return { steps, jevBodies, jevCalls }
 }
 
 async function runTurn($: Engine, turnId: string, text: string, stepsInTurn = 2) {
@@ -82,6 +84,13 @@ describe('routing', () => {
     expect(steps.map(s => s.model)).toEqual(['claude-haiku-5-5', 'claude-haiku-5-5'])
     expect(steps[0]!.effort).toBe('high')
     expect(JSON.parse(jevBodies[0]!).state.request).toBe('rename foo to bar in utils.js')
+  })
+
+  test('a self-hosted endpoint routes without an API key', { options: { endpoint: 'http://127.0.0.1:8787/v1/systemone' } }, async ($, on) => {
+    const { steps, jevCalls } = world(on, () => ({ status: 200, text: jevSays('haiku', 0.95) }), {})
+    await runTurn($, 't1', 'rename foo to bar in utils.js')
+    expect(jevCalls).toEqual([{ url: 'http://127.0.0.1:8787/v1/systemone', auth: undefined }])
+    expect(steps[0]!.model).toBe('claude-haiku-5-5')
   })
 
   test('Jev failing keeps the current model', async ($, on) => {

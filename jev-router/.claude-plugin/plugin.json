@@ -21,6 +21,12 @@
       "title": "Route from session start",
       "description": "Start each session with routing on. Off: run /jev on to start.",
       "default": true
+    },
+    "endpoint": {
+      "type": "string",
+      "title": "Endpoint",
+      "description": "SystemOne URL. Empty: TypeSafe (https://api.typesafe.ai/v1/systemone). Self-hosted clef-flash: http://127.0.0.1:8787/v1/systemone (no API key needed).",
+      "required": false
     }
   },
   "author": {

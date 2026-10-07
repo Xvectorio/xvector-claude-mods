@@ -28,6 +28,7 @@ const HISTORY = 20
 /** What the module keeps for the session; reset when the module reloads. */
 type State = {
   allowFable: boolean
+  endpoint: string
   configuredKey: string | undefined
   routing: boolean
   apiKey: string | null | undefined // undefined: not looked up yet; null: none found
@@ -59,16 +60,16 @@ async function findKey($: EngineInterface, s: State): Promise<string | null> {
   return s.apiKey
 }
 
-async function askJev($: EngineInterface, s: State, key: string, prompt: string, current: TierName, tiers: TierName[]) {
+async function askJev($: EngineInterface, s: State, key: string | null, prompt: string, current: TierName, tiers: TierName[]) {
   const stop = new AbortController()
   const deadline = $.clock
     .sleep(THRESHOLDS.jevDeadlineMs, { signal: stop.signal })
     .then(() => 'timeout' as const, () => 'cancelled' as const)
   try {
     const res = await Promise.race([
-      $.http.fetch(JEV_URL, {
+      $.http.fetch(s.endpoint, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        headers: { ...(key && { Authorization: `Bearer ${key}` }), 'Content-Type': 'application/json' },
         body: JSON.stringify(jevRequest(prompt, current, s.contextTokens, tiers)),
       }),
       deadline,
@@ -97,7 +98,8 @@ async function route($: EngineInterface, s: State, prompt: string, sessionModel:
   let error: string | undefined
   if (!detectOverride(prompt)) {
     const key = await findKey($, s)
-    if (!key) error = 'no API key (set JEV_API_KEY or /config)'
+    // A self-hosted endpoint (clev) needs no key; TypeSafe does.
+    if (!key && s.endpoint === JEV_URL) error = 'no API key (set JEV_API_KEY or /config)'
     else {
       try {
         jev = await askJev($, s, key, prompt, current, available)
@@ -122,6 +124,7 @@ async function route($: EngineInterface, s: State, prompt: string, sessionModel:
 export const register: Register = (on, options) => {
   const s: State = {
     allowFable: options.allowFable === true,
+    endpoint: (options.endpoint as string | undefined) || JEV_URL,
     configuredKey: (options.apiKey as string | undefined) || undefined,
     routing: options.routeOnStart !== false,
     apiKey: undefined,
@@ -199,7 +202,7 @@ export const register: Register = (on, options) => {
       s.apiKey = undefined // look again, in case a key was added since
       const key = await findKey($, s)
       $.ui.status('⚡ jev')
-      return { text: key ? 'Jev routing on.' : 'Jev routing on, but no API key was found: every turn stays on the current model.' }
+      return { text: key || s.endpoint !== JEV_URL ? 'Jev routing on.' : 'Jev routing on, but no API key was found: every turn stays on the current model.' }
     }
     if (arg === 'off') {
       s.routing = false
