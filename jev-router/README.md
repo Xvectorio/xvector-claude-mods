@@ -73,8 +73,10 @@ Name a tier yourself and Jev is skipped: `use haiku ...`, `switch to opus ...`, 
 - Jev is asked once per prompt. The chosen model is kept for that turn's tool calls.
 - Jev failing, an error, or no answer within 3 s keeps the current model. Routing never blocks a prompt.
 - Confidence below 0.3: never downgrade, and upgrades stop at Sonnet.
-- No downgrade once the conversation passes 20,000 tokens: switching models re-caches the whole
-  conversation, which costs more than the cheaper model saves.
+- No downgrade while the prompt cache is warm and the conversation is past 20,000 tokens: caches
+  are per model, so switching re-caches the whole conversation, which costs more than the cheaper
+  model saves. After `/clear`, or once the cache has lapsed from sitting idle for an hour, there is
+  nothing to lose and the downgrade goes ahead.
 - A tier that isn't available is replaced by the nearest one above it (never Fable unless allowed).
 - If the chosen tier is the one the session already runs, the session's exact model id is kept.
 - Subagents keep their own models.

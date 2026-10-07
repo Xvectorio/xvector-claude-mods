@@ -34,6 +34,7 @@ type State = {
   apiKey: string | null | undefined // undefined: not looked up yet; null: none found
   lastModel: string | undefined // what the previous routed turn ran on
   contextTokens: number
+  lastResponseAt: number | undefined // when the main model last answered; undefined: nothing cached
   turnText: Map<string, string>
   pinned: Map<string, string>
   history: Record_[]
@@ -108,7 +109,8 @@ async function route($: EngineInterface, s: State, prompt: string, sessionModel:
       }
     }
   }
-  const decision = decide({ prompt, jev, current, available, contextTokens: s.contextTokens })
+  const cacheWarm = s.lastResponseAt !== undefined && started - s.lastResponseAt < THRESHOLDS.cacheTtlMs
+  const decision = decide({ prompt, jev, current, available, contextTokens: s.contextTokens, cacheWarm })
   const model = modelFor(decision.tier)
   const ms = (await $.clock.now()) - started
 
@@ -130,6 +132,7 @@ export const register: Register = (on, options) => {
     apiKey: undefined,
     lastModel: undefined,
     contextTokens: 0,
+    lastResponseAt: undefined,
     turnText: new Map(),
     pinned: new Map(),
     history: [],
@@ -174,8 +177,19 @@ export const register: Register = (on, options) => {
     if (result.usage) {
       const u = result.usage
       s.contextTokens = u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens + u.output_tokens
+      s.lastResponseAt = await $.clock.now()
     }
     return result
+  })
+
+  // /clear starts a conversation with nothing cached: forget the old one's size and cache.
+  on('session.end', (_$, e, next) => {
+    if (e.reason === 'clear') {
+      s.contextTokens = 0
+      s.lastResponseAt = undefined
+      s.lastModel = undefined
+    }
+    return next(e)
   })
 
   on('turn.complete', ($, e, next) => {

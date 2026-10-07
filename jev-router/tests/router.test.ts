@@ -13,11 +13,11 @@ const jevSays = (choice: string, confidence: number) =>
   })
 
 /** The engine beneath the plugin: a session on Opus, Jev answering `reply`, every step recorded. */
-function world(on: On, reply: () => { status: number; text: string }, env: Record<string, string> = { JEV_API_KEY: 'test-key' }) {
+function world(on: On, reply: () => { status: number; text: string }, env: Record<string, string> = { JEV_API_KEY: 'test-key' }, inputTokens = 500) {
   const steps: { index: number; model: string; effort?: unknown }[] = []
   const jevBodies: string[] = []
   const jevCalls: { url: string; auth: string | undefined }[] = []
-  mock.clock(on)
+  const clock = mock.clock(on)
   mock.env(on, env)
   on('session.root', () => ({ value: '/repo' }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
@@ -32,10 +32,10 @@ function world(on: On, reply: () => { status: number; text: string }, env: Recor
     steps.push({ index: e.index, model: e.model, effort: e.effort })
     return {
       turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn',
-      usage: { model: e.model, input_tokens: 500, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      usage: { model: e.model, input_tokens: inputTokens, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
     }
   })
-  return { steps, jevBodies, jevCalls }
+  return { steps, jevBodies, jevCalls, clock }
 }
 
 async function runTurn($: Engine, turnId: string, text: string, stepsInTurn = 2) {
@@ -55,19 +55,20 @@ describe('policy', () => {
 
   test('low confidence never downgrades', () => {
     const jev = parseJev(JSON.parse(jevSays('haiku', 0.1)), 0)
-    const d = decide({ prompt: 'x', jev, current: 'opus', available: ['haiku', 'sonnet', 'opus'], contextTokens: 0 })
+    const d = decide({ prompt: 'x', jev, current: 'opus', available: ['haiku', 'sonnet', 'opus'], contextTokens: 0, cacheWarm: true })
     expect(d).toEqual({ tier: 'opus', reason: 'low-confidence-no-downgrade/no-change', changed: false })
   })
 
   test('large conversations refuse downgrades', () => {
     const jev = parseJev(JSON.parse(jevSays('haiku', 0.9)), 50_000)
-    const d = decide({ prompt: 'x', jev, current: 'opus', available: ['haiku', 'sonnet', 'opus'], contextTokens: 50_000 })
+    const d = decide({ prompt: 'x', jev, current: 'opus', available: ['haiku', 'sonnet', 'opus'], contextTokens: 50_000, cacheWarm: true })
     expect(d.reason).toBe('downgrade-not-worth-cache-rebuild/no-change')
+    expect(decide({ prompt: 'x', jev, current: 'opus', available: ['haiku', 'sonnet', 'opus'], contextTokens: 50_000, cacheWarm: false }).tier).toBe('haiku')
   })
 
   test('fable steps down to the nearest tier when not allowed', () => {
     const jev = parseJev(JSON.parse(jevSays('fable', 0.9)), 0)
-    const d = decide({ prompt: 'x', jev, current: 'sonnet', available: ['haiku', 'sonnet', 'opus'], contextTokens: 0 })
+    const d = decide({ prompt: 'x', jev, current: 'sonnet', available: ['haiku', 'sonnet', 'opus'], contextTokens: 0, cacheWarm: true })
     expect(d.tier).toBe('opus')
   })
 
@@ -91,6 +92,26 @@ describe('routing', () => {
     await runTurn($, 't1', 'rename foo to bar in utils.js')
     expect(jevCalls).toEqual([{ url: 'http://127.0.0.1:8787/v1/systemone', auth: undefined }])
     expect(steps[0]!.model).toBe('claude-haiku-5-5')
+  })
+
+  test('a warm big conversation holds its model; /clear or an expired cache frees the downgrade', async ($, on) => {
+    let choice = 'opus'
+    const { steps, clock } = world(on, () => ({ status: 200, text: jevSays(choice, 0.9) }), { JEV_API_KEY: 'k' }, 50_000)
+    const model = () => steps.at(-1)!.model
+    on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
+    await runTurn($, 't1', 'design the module', 1)
+    choice = 'haiku'
+    await runTurn($, 't2', 'ls', 1)
+    expect(model()).toBe('claude-opus-5-5') // 50k tokens cached on Opus: switching would rebuild them
+    await $.session.end({ reason: 'clear', sessionId: 's1', resume: {} as never })
+    await runTurn($, 't3', 'ls', 1)
+    expect(model()).toBe('claude-haiku-5-5') // nothing cached after /clear
+    choice = 'opus'
+    await runTurn($, 't4', 'design the module', 1)
+    choice = 'haiku'
+    await clock.advance(2 * 60 * 60_000)
+    await runTurn($, 't5', 'ls', 1)
+    expect(model()).toBe('claude-haiku-5-5') // cache lapsed while idle
   })
 
   test('Jev failing keeps the current model', async ($, on) => {

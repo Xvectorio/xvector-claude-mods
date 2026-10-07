@@ -30,8 +30,10 @@ export const THRESHOLDS = {
   /** Below this Jev confidence: never downgrade, cap upgrades at `uncertainCeiling`. */
   minConfidence: 0.3,
   uncertainCeiling: 'sonnet' as TierName,
-  /** A model switch re-caches the whole conversation; downgrades only pay off while it is small. */
+  /** A model switch forfeits the warm prompt cache; downgrades only pay off while the context is small. */
   downgradeMaxContextTokens: 20_000,
+  /** A cache idle longer than this is gone, so a switch costs nothing. ponytail: 1h (subscription TTL); API-key plans expire in 5 min, so some free downgrades are skipped there. */
+  cacheTtlMs: 60 * 60_000,
   /** Hard wall-clock deadline for the Jev call (warm ~300ms, cold ~1s). */
   jevDeadlineMs: 3_000,
 }
@@ -156,8 +158,10 @@ export function decide(input: {
   current: TierName
   available: TierName[]
   contextTokens: number
+  /** The current model's prompt cache is probably still warm: a switch would forfeit it. */
+  cacheWarm: boolean
 }): Decision {
-  const { prompt, jev, current, available, contextTokens } = input
+  const { prompt, jev, current, available, contextTokens, cacheWarm } = input
   const settle = (tier: TierName, reason: string): Decision => {
     const final = clampToAvailable(tier, available) ?? current
     const why = final === tier ? reason : `${reason}+unavailable`
@@ -176,7 +180,7 @@ export function decide(input: {
     if (rankOf(target) > ceiling) return settle(TIER_NAMES[ceiling]!, 'low-confidence-capped')
   }
 
-  if (rankOf(target) < rankOf(current) && contextTokens > THRESHOLDS.downgradeMaxContextTokens) {
+  if (rankOf(target) < rankOf(current) && cacheWarm && contextTokens > THRESHOLDS.downgradeMaxContextTokens) {
     return settle(current, 'downgrade-not-worth-cache-rebuild')
   }
 
@@ -282,7 +286,7 @@ export function helpText(allowFable: boolean): string {
     `  - Jev is asked once per prompt; the model is kept for the turn's tool calls.`,
     `  - Jev failing or timing out (${THRESHOLDS.jevDeadlineMs / 1000} s) keeps the current model.`,
     `  - Confidence below ${THRESHOLDS.minConfidence}: no downgrade, upgrades stop at ${THRESHOLDS.uncertainCeiling}.`,
-    `  - No downgrade past ${THRESHOLDS.downgradeMaxContextTokens.toLocaleString('en-US')} context tokens (it would re-cache the conversation).`,
+    `  - No downgrade past ${THRESHOLDS.downgradeMaxContextTokens.toLocaleString('en-US')} context tokens while the prompt cache is warm (it would re-cache the conversation).`,
     '  - Picking a model with /model pauses routing; /jev on resumes it.',
     '  - Subagents are not routed.',
     '',
